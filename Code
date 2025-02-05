@@ -1,0 +1,182 @@
+# Import Required Libraries
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import streamlit as st
+import numpy as np
+
+# Set dark theme for Streamlit
+st.set_page_config(layout="wide", page_title="Screen Time Tracker", page_icon="📱")
+
+# Custom Styles for Matplotlib
+theme = st.sidebar.radio("Select Theme", options=["Dark", "Light"])
+if theme == "Light":
+    plt.style.use("default")
+    sns.set_palette("pastel")
+else:
+    plt.style.use("dark_background")
+    sns.set_palette("bright")
+
+# Data Cleaning Function
+def clean_data(data):
+    """
+    Cleans the input data by handling duplicates and missing values.
+    """
+    data = data.drop_duplicates()
+    data = data.dropna()  # Drop rows with missing values
+    data['Date'] = pd.to_datetime(data['Date'], errors='coerce')  # Ensure Date is in datetime format
+    data = data.dropna(subset=['Date'])  # Drop rows where Date couldn't be parsed
+    return data
+
+# Data Manipulation Function
+def process_data(data):
+    """
+    Processes the data for insights and aggregation.
+    """
+    # Calculate total usage metrics by app
+    app_summary = data.groupby('App').agg({
+        'Usage (minutes)': 'sum',
+        'Notifications': 'sum',
+        'Times Opened': 'sum'
+    }).reset_index()
+
+    # Daily usage summary
+    daily_summary = data.groupby('Date').agg({
+        'Usage (minutes)': 'sum',
+        'Notifications': 'sum',
+        'Times Opened': 'sum'
+    }).reset_index()
+
+    return app_summary, daily_summary
+
+# Data Visualization Function (Improved)
+def visualize_data(app_summary, daily_summary):
+    """
+    Generates and displays visualizations for the given data with improved layout and sizing.
+    """
+    # App Usage by App (Smaller Barplot)
+    st.write("### Total Usage by App")
+    fig, ax = plt.subplots(figsize=(8, 4))  
+    sns.barplot(data=app_summary, x='App', y='Usage (minutes)', palette='cool', ax=ax)
+    ax.set_title("Total Usage by App", fontsize=12, color='cyan')
+    ax.set_xlabel("App", fontsize=10, color='white')
+    ax.set_ylabel("Usage (minutes)", fontsize=10, color='white')
+    plt.xticks(rotation=30, fontsize=9, color='white')
+    st.pyplot(fig)
+
+    # Daily Usage Trends (Smaller Lineplot)
+    st.write("### Daily Usage Trends")
+    fig, ax = plt.subplots(figsize=(8, 4))  
+    sns.lineplot(data=daily_summary, x='Date', y='Usage (minutes)', marker='o', color='lime', ax=ax)
+    ax.set_title("Daily Usage Trends", fontsize=12, color='cyan')
+    ax.set_xlabel("Date", fontsize=10, color='white')
+    ax.set_ylabel("Usage (minutes)", fontsize=10, color='white')
+    plt.xticks(rotation=30, fontsize=9, color='white')
+    st.pyplot(fig)
+
+    # Rolling Average Visualization
+    st.write("### Daily Usage with Rolling Average")
+    daily_summary['Rolling Avg'] = daily_summary['Usage (minutes)'].rolling(window=7).mean()  # 7-day rolling average
+    fig, ax = plt.subplots(figsize=(8, 4))  
+    sns.lineplot(data=daily_summary, x='Date', y='Usage (minutes)', marker='o', color='lime', ax=ax, label="Daily Usage")
+    sns.lineplot(data=daily_summary, x='Date', y='Rolling Avg', marker='o', color='red', ax=ax, label="7-Day Rolling Avg", linestyle='--')
+    ax.set_title("Daily Usage with Rolling Average", fontsize=12, color='cyan')
+    ax.set_xlabel("Date", fontsize=10, color='white')
+    ax.set_ylabel("Usage (minutes)", fontsize=10, color='white')
+    ax.legend(fontsize=9)
+    plt.xticks(rotation=30, fontsize=9, color='white')
+    st.pyplot(fig)
+
+    # App Usage Distribution (Pie Chart)
+    st.write("### App Usage Distribution")
+    fig, ax = plt.subplots(figsize=(6, 6))  
+    plt.pie(app_summary['Usage (minutes)'], labels=app_summary['App'], autopct='%1.1f%%', 
+            colors=sns.color_palette("cool", len(app_summary)), textprops={'fontsize': 9})
+    plt.title("App Usage Distribution", fontsize=12, color='cyan')
+    st.pyplot(fig)
+
+    # Usage Duration Histogram
+    st.write("### Usage Duration Histogram")
+    fig, ax = plt.subplots(figsize=(8, 4))  
+    sns.histplot(data=daily_summary, x='Usage (minutes)', bins=20, ax=ax, color='cyan')
+    ax.set_title('Usage Duration Histogram', fontsize=12, color='cyan')
+    ax.set_xlabel('Usage (minutes)', fontsize=10, color='white')
+    ax.set_ylabel('Frequency', fontsize=10, color='white')
+    plt.xticks(fontsize=9, color='white')
+    st.pyplot(fig)
+
+# Improved Alert Function
+def display_alerts(daily_summary, app_summary):
+    """
+    Displays alert messages for high screen time or excessive app usage.
+    """
+    avg_daily_usage = daily_summary['Usage (minutes)'].mean()
+    st.markdown("### Alerts")
+    
+    # High average daily usage alert
+    if avg_daily_usage > 300:  # Example: 5 hours
+        st.warning(f"⚠️ **High Average Daily Screen Time:** {avg_daily_usage:.2f} minutes.")
+    else:
+        st.success("✅ **Average daily screen time is within a healthy range.**")
+
+    # Top app excessive usage alert
+    top_app = app_summary.loc[app_summary['Usage (minutes)'].idxmax()]
+    if top_app['Usage (minutes)'] > 1200:  # Example: 20 hours
+        st.warning(f"⚠️ **Excessive Usage Detected:** {top_app['App']} has {top_app['Usage (minutes)']} minutes of usage.")
+    else:
+        st.success(f"✅ **No excessive usage detected for any single app.**")
+
+
+
+
+# Streamlit Dashboard
+def main():
+    st.title("📊 Screen Time Tracker and Management")
+    st.markdown("""
+        **Features**:
+        - 📈 Interactive visualizations of app usage and trends.
+        - 🚨 Alerts for excessive usage.
+    """)
+    st.sidebar.title("Settings")
+    st.sidebar.info("Upload your dataset in CSV format for analysis.")
+
+    # File Upload
+    uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type=["csv"])
+    if uploaded_file is not None:
+        # Load and display data
+        data = pd.read_csv(uploaded_file)
+        st.write("### Raw Data:")
+        st.dataframe(data.head())
+
+        # Clean data
+        cleaned_data = clean_data(data)
+        st.write("### Cleaned Data:")
+        st.dataframe(cleaned_data.head())
+
+        # Process data
+        app_summary, daily_summary = process_data(cleaned_data)
+
+        # Key Metrics at a Glance
+        st.write("### Key Metrics")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Screen Time (min)", daily_summary['Usage (minutes)'].sum())
+        col2.metric("Average Daily Usage (min)", daily_summary['Usage (minutes)'].mean())
+        top_app = app_summary.loc[app_summary['Usage (minutes)'].idxmax()]
+        col3.metric("Most Used App", top_app['App'])
+        
+        # Display alerts
+        display_alerts(daily_summary, app_summary)
+
+        # Interactive App Summary Table with Highlight
+        st.write("### Interactive App Summary Table")
+        columns_to_highlight = app_summary.columns[1:]
+        st.dataframe(app_summary.style.highlight_max(axis=0, subset=columns_to_highlight)) # Highlights the max values in each column
+
+        
+        # Visualize data
+        visualize_data( app_summary, daily_summary)
+
+
+# Run the Streamlit app
+if __name__ == "__main__": 
+    main() 
