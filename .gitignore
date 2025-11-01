@@ -1,0 +1,16 @@
+# Virtual Environment
+venv/
+*.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Data files - Do not upload personal or large data!
+*.csv
+*.db
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store
